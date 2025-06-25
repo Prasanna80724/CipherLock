@@ -1,0 +1,150 @@
+/* NAVBAR + HERO WRAPPER */
+.hero-section-wrapper {
+  width: 100%;
+  background-color: #f3f4f6;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  flex-direction: column;
+  font-family: "Segoe UI", sans-serif;
+}
+
+/* NAVBAR */
+.navbar {
+  width: 100%;
+  background-color: #ffffff;
+  padding: 1rem 2rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 10;
+  overflow-x: auto;
+}
+
+.navbar h1 {
+  color: #5c67ff;
+  font-size: 1.8rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.navbar nav {
+  display: flex;
+  flex-wrap: nowrap;
+}
+
+.navbar nav a {
+  margin-left: 2rem;
+  text-decoration: none;
+  color: #333;
+  font-weight: 500;
+  position: relative;
+  white-space: nowrap;
+}
+
+.navbar nav a.active::after,
+.navbar nav a:hover::after {
+  content: "";
+  position: absolute;
+  bottom: -4px;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: #5c67ff;
+}
+
+/* HERO SECTION */
+.hero-section {
+  width: 100%;
+  max-width: 1200px;
+  margin: 6rem auto 2rem auto;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 3rem;
+  padding: 2rem;
+}
+
+.hero-text {
+  flex: 1;
+  min-width: 300px;
+  max-width: 480px;
+}
+
+.hero-text h2 {
+  color: #5c67ff;
+  font-size: 2.8rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  font-family: "Poppins", sans-serif;
+}
+
+.hero-text p {
+  font-size: 1.1rem;
+  color: #555;
+  margin-bottom: 2rem;
+  line-height: 1.6;
+}
+
+/* LARGE PASSKEY INPUT */
+.passkey-section {
+  width: 100%;
+  text-align: left;
+}
+
+.passkey-section h2 {
+  font-size: 2rem;
+  color: #5c67ff;
+  font-weight: bold;
+  font-family: "Poppins", sans-serif;
+  margin-bottom: 1rem;
+}
+
+.passkey-section input {
+  width: 80%;
+  padding: 1.2rem;
+  font-size: 1.2rem;
+  border: 3px solid #5c67ff;
+  border-radius: 10px;
+  font-family: "Poppins", sans-serif;
+  margin-bottom: 1rem;
+}
+
+.passkey-section button {
+  background-color: #5c67ff;
+  color: white;
+  padding: 0.9rem 2.5rem;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  font-family: "Poppins", sans-serif;
+}
+
+.passkey-section button:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+}
+
+.hero-image img {
+  width: 400px;
+  max-width: 100%;
+  border-radius: 10px;
+}
+
+/* FOOTER */
+.footer {
+  text-align: center;
+  color: #999;
+  font-size: 0.9rem;
+  padding: 1rem 0;
+  margin-top: 2rem;
+  font-family: "Segoe UI", sans-serif;
+}
