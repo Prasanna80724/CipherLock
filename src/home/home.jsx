@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "./Home.css";
-import LockImage from "../assets/lock-banner.png";
 import { initializeDB } from '../db';
 
 const Home = () => {
@@ -172,7 +171,7 @@ const Home = () => {
         </div>
 
         <div className="hero-image">
-          <img src={LockImage} alt="Secure illustration" />
+          <img src="/lock-banner.png" alt="Secure illustration" />
         </div>
       </div>
     </div>

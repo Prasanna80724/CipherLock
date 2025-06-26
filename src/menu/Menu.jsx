@@ -2,7 +2,7 @@ import React, { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import "./Menu.css";
 import { FaStickyNote, FaLink, FaLock, FaSignOutAlt, FaUserSlash } from "react-icons/fa";
-import VaultImage from "../assets/private-data.png";
+
 
 const Menu = () => {
   const navigate = useNavigate();
@@ -76,7 +76,7 @@ const Menu = () => {
       </div>
 
       <div className="menu-image">
-        <img src={VaultImage} alt="Secure Vault" />
+        <img src="/private-data.png" alt="Secure Vault" />
       </div>
     </div>
   );

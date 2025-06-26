@@ -4,7 +4,9 @@ import "./password.css"; // reuse link.css styling
 import { initializeDB } from '../db';
 import { FaSearch, FaPlus, FaTimes, FaEdit, FaTrash } from "react-icons/fa";
 
+
 const Passwords = () => {
+
   const navigate = useNavigate();
   const location = useLocation();
   const [passwords, setPasswords] = useState([]);

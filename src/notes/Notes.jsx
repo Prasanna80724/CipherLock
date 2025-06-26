@@ -4,7 +4,10 @@ import "./Notes.css";
 import { initializeDB } from '../db';
 import { FaSearch, FaPlus, FaTimes, FaEdit, FaTrash } from "react-icons/fa";
 
+
+
 const Notes = () => {
+
   const navigate = useNavigate();
   const location = useLocation();
   const [notes, setNotes] = useState([]);

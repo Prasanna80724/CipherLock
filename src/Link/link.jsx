@@ -4,7 +4,9 @@ import "./link.css";
 import { initializeDB } from '../db';
 import { FaSearch, FaPlus, FaTimes, FaEdit, FaTrash } from "react-icons/fa";
 
+
 const Link = () => {
+
   const navigate = useNavigate();
   const location = useLocation();
   const [links, setLinks] = useState([]);
