@@ -2,9 +2,9 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "./Home.css";
 import LockImage from "../assets/lock-banner.png";
+import { initializeDB } from '../db';
 
-const home = () => {
-  let db = window.data_base;
+const Home = () => {
   const [input, setInput] = useState("");
   const [valid, setValid] = useState(true);
   const [showSection, setShowSection] = useState("loading");
@@ -19,9 +19,7 @@ const home = () => {
   const generateString = (length) => {
     let result = "";
     for (let i = 0; i < length; i++) {
-      result += characters1.charAt(
-        Math.floor(Math.random() * characters1.length)
-      );
+      result += characters1.charAt(Math.floor(Math.random() * characters1.length));
     }
     return result;
   };
@@ -48,6 +46,12 @@ const home = () => {
   };
 
   const checkPasskey = () => {
+    const db = window.data_base;
+    if (!db) {
+      console.error("Database not initialized yet.");
+      return;
+    }
+
     const tx = db.transaction("passkey", "readonly");
     const store = tx.objectStore("passkey");
 
@@ -82,6 +86,12 @@ const home = () => {
   };
 
   const handleSetPasskey = () => {
+    const db = window.data_base;
+    if (!db) {
+      alert("Database not ready");
+      return;
+    }
+
     if (isNewPasskey) {
       const tx = db.transaction("passkey", "readwrite");
       const store = tx.objectStore("passkey");
@@ -117,38 +127,23 @@ const home = () => {
   };
 
   useEffect(() => {
-    const dbName = window.dbnewName || "SafeNotesDB";
-    const dbVersion = window.dbVer || 1;
-
-    const request = indexedDB.open("SafeNotesDB", 3);
-
-    request.onupgradeneeded = (e) => {
-      const db = e.target.result;
-      if (!db.objectStoreNames.contains("passkey")) {
-        db.createObjectStore("passkey", { keyPath: "id" });
+    initializeDB(
+      () => {
+        console.log("DB initialized successfully");
+        checkPasskey();
+      },
+      () => {
+        alert("Failed to initialize database.");
       }
-    };
-
-    request.onsuccess = (e) => {
-      db = e.target.result;
-      window.data_base = db;
-      checkPasskey();
-    };
-
-    request.onerror = (e) => {
-      console.error("IndexedDB open error:", e.target.error);
-      alert("Error opening IndexedDB: " + e.target.error.message);
-    };
+    );
   }, []);
 
   return (
     <div className="hero-section-wrapper">
-      {/* Navbar */}
       <div className="navbar">
         <h1>CipherLock</h1>
       </div>
 
-      {/* Hero Section */}
       <div className="hero-section">
         <div className="hero-text">
           <h2>Secure Your Thoughts with CipherLock</h2>
@@ -169,7 +164,6 @@ const home = () => {
                 onChange={onInputChange}
                 placeholder="4-digit passkey"
               />
-
               <button disabled={valid} onClick={handleSetPasskey}>
                 {isNewPasskey ? "Set" : "Unlock"}
               </button>
@@ -185,4 +179,4 @@ const home = () => {
   );
 };
 
-export default home;
+export default Home;

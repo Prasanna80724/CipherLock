@@ -61,7 +61,7 @@ const Notes = () => {
   useEffect(() => {
      initializeDB(() => {
        setDbReady(true);
-       loadPasswords();
+       loadNotes();
      }, () => setDbError(true));
    }, []);
  

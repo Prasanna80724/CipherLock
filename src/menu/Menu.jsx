@@ -24,13 +24,25 @@ const Menu = () => {
     navigate("/", { replace: true });
   };
 
-  const handleDeleteAccount = () => {
-    const db = window.data_base;
-    const tx = db.transaction("passkey", "readwrite");
-    tx.objectStore("passkey").clear();
+ const handleDeleteAccount = () => {
+  // Delete the IndexedDB database
+  const deleteRequest = indexedDB.deleteDatabase("SafeNotesDB");
+
+  deleteRequest.onsuccess = () => {
+    console.log("SafeNotesDB deleted successfully.");
     localStorage.removeItem("Safe-notes");
     navigate("/", { replace: true });
   };
+
+  deleteRequest.onerror = (e) => {
+    console.error("Error deleting SafeNotesDB:", e);
+    alert("Failed to delete account data.");
+  };
+
+  deleteRequest.onblocked = () => {
+    alert("Please close other tabs using the app and try again.");
+  };
+};
 
   return (
     <div className="menu-wrapper">
