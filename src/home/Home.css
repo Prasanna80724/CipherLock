@@ -148,3 +148,44 @@
   margin-top: 2rem;
   font-family: "Segoe UI", sans-serif;
 }
+
+@media (max-width: 768px) {
+  .navbar h1 {
+    font-size: 1.5rem;
+  }
+
+  .hero-text h2 {
+    font-size: 2rem;
+  }
+
+  .hero-text p {
+    font-size: 1rem;
+  }
+
+  .passkey-section input {
+    width: 100%;
+    font-size: 1rem;
+    padding: 1rem;
+  }
+
+  .passkey-section button {
+    width: 100%;
+    padding: 0.8rem;
+  }
+
+  .hero-section {
+    flex-direction: column;
+    padding: 1rem;
+    text-align: center;
+  }
+
+  .hero-text {
+    text-align: center;
+  }
+
+  .navbar {
+    padding: 1rem;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+}
