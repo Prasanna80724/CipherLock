@@ -1,12 +1,64 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import "./password.css"; // reuse link.css styling
+import "./password.css";
 import { initializeDB } from '../db';
 import { FaSearch, FaPlus, FaTimes, FaEdit, FaTrash } from "react-icons/fa";
 
+// AES utilities
+const getKeyMaterial = async (password) => {
+  const enc = new TextEncoder();
+  return crypto.subtle.importKey("raw", enc.encode(password), { name: "PBKDF2" }, false, ["deriveKey"]);
+};
+
+const getAESKey = async (password, salt) => {
+  const keyMaterial = await getKeyMaterial(password);
+  return crypto.subtle.deriveKey(
+    {
+      name: "PBKDF2",
+      salt,
+      iterations: 100000,
+      hash: "SHA-256",
+    },
+    keyMaterial,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"]
+  );
+};
+
+const encryptText = async (text, password) => {
+  const enc = new TextEncoder();
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const key = await getAESKey(password, salt);
+  const encrypted = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, enc.encode(text));
+  const combined = new Uint8Array(iv.length + salt.length + encrypted.byteLength);
+  combined.set(iv, 0);
+  combined.set(salt, iv.length);
+  combined.set(new Uint8Array(encrypted), iv.length + salt.length);
+  return btoa(String.fromCharCode(...combined));
+};
+
+const decryptText = async (base64Data, password) => {
+  try {
+    const data = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+    const iv = data.slice(0, 12);
+    const salt = data.slice(12, 28);
+    const encrypted = data.slice(28);
+    const key = await getAESKey(password, salt);
+    const decrypted = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, encrypted);
+    return new TextDecoder().decode(decrypted);
+  } catch {
+    return '';
+  }
+};
+
+const getEncryptionKey = () => {
+  const localVal = localStorage.getItem("Safe-notes");
+  return typeof localVal === "string" && localVal.length > 0 ? localVal : "default-key";
+};
 
 const Passwords = () => {
-
   const navigate = useNavigate();
   const location = useLocation();
   const [passwords, setPasswords] = useState([]);
@@ -17,36 +69,6 @@ const Passwords = () => {
   const [editingEntry, setEditingEntry] = useState(null);
   const [dbReady, setDbReady] = useState(false);
   const [dbError, setDbError] = useState(false);
-
-  const encryptText = (text, key) => {
-    let encrypted = '';
-    for (let i = 0; i < text.length; i++) {
-      const charCode = text.charCodeAt(i);
-      const keyChar = key.charCodeAt(i % key.length);
-      encrypted += String.fromCharCode(charCode ^ keyChar);
-    }
-    return btoa(encrypted);
-  };
-
-  const decryptText = (encryptedText, key) => {
-    try {
-      const decoded = atob(encryptedText);
-      let decrypted = '';
-      for (let i = 0; i < decoded.length; i++) {
-        const charCode = decoded.charCodeAt(i);
-        const keyChar = key.charCodeAt(i % key.length);
-        decrypted += String.fromCharCode(charCode ^ keyChar);
-      }
-      return decrypted;
-    } catch {
-      return '';
-    }
-  };
-
-  const getEncryptionKey = () => {
-    const localVal = localStorage.getItem("Safe-notes");
-    return typeof localVal === "string" && localVal.length > 0 ? localVal : "default-key";
-  };
 
   useEffect(() => {
     const localVal = localStorage.getItem("Safe-notes");
@@ -62,7 +84,7 @@ const Passwords = () => {
     }, () => setDbError(true));
   }, []);
 
-  const loadPasswords = () => {
+  const loadPasswords = async () => {
     const db = window.data_base;
     if (!db) return;
 
@@ -70,44 +92,49 @@ const Passwords = () => {
     const store = tx.objectStore("passwords");
     const request = store.getAll();
 
-    request.onsuccess = () => {
+    request.onsuccess = async () => {
       const key = getEncryptionKey();
-      const decrypted = request.result.map(entry => ({
-        ...entry,
-        title: decryptText(entry.title, key),
-        password: decryptText(entry.password, key)
-      }));
+      const decrypted = await Promise.all(
+        request.result.map(async entry => ({
+          ...entry,
+          title: await decryptText(entry.title, key),
+          password: await decryptText(entry.password, key)
+        }))
+      );
       setPasswords(decrypted);
     };
 
-    request.onerror = () => {
-      setPasswords([]);
-    };
+    request.onerror = () => setPasswords([]);
   };
 
-  const handleAddPassword = () => {
-    if (!title.trim() || !password.trim()) return;
-    const db = window.data_base;
-    const key = getEncryptionKey();
-    const tx = db.transaction("passwords", "readwrite");
-    const store = tx.objectStore("passwords");
+const handleAddPassword = async () => {
+  if (!title.trim() || !password.trim()) return;
 
-    const newEntry = {
-      id: editingEntry ? editingEntry.id : Date.now().toString(),
-      title: encryptText(title.trim(), key),
-      password: encryptText(password.trim(), key),
-      createdAt: editingEntry ? editingEntry.createdAt : new Date().toISOString()
-    };
+  const key = getEncryptionKey();
+  const encryptedTitle = await encryptText(title.trim(), key);
+  const encryptedPassword = await encryptText(password.trim(), key);
 
-    const request = editingEntry ? store.put(newEntry) : store.add(newEntry);
-    request.onsuccess = () => {
-      loadPasswords();
-      closeModal();
-    };
-    request.onerror = () => {
-      alert('Failed to save password.');
-    };
+  const db = window.data_base;
+  const tx = db.transaction("passwords", "readwrite");
+  const store = tx.objectStore("passwords");
+
+  const newEntry = {
+    id: editingEntry ? editingEntry.id : Date.now().toString(),
+    title: encryptedTitle,
+    password: encryptedPassword,
+    createdAt: editingEntry ? editingEntry.createdAt : new Date().toISOString()
   };
+
+  const request = editingEntry ? store.put(newEntry) : store.add(newEntry);
+
+  request.onsuccess = () => {
+    loadPasswords();
+    closeModal();
+  };
+  request.onerror = () => {
+    alert('Failed to save password.');
+  };
+};
 
   const handleEditPassword = (entry) => {
     setEditingEntry(entry);

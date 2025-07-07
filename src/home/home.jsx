@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "./Home.css";
 import { initializeDB } from '../db';
+import { deriveKey, encryptData, decryptData } from "../utils/crypto";
+
 
 const Home = () => {
   const [input, setInput] = useState("");
@@ -10,34 +12,7 @@ const Home = () => {
   const [isNewPasskey, setIsNewPasskey] = useState(false);
   const navigate = useNavigate();
 
-  const characters1 =
-    "T7P36LlcJK9jRkmrn5yFpMbGa1SWidswzOhVI0DZt NxCHoYBQ8uUAv4eg2EXfq";
-  const characters2 =
-    "AL9n2TS57RaIJgx8uqdXvYezMCpU1syH0wcKGNWE ikQO4Zlhbm3jD6tPVFrofB";
-
-  const generateString = (length) => {
-    let result = "";
-    for (let i = 0; i < length; i++) {
-      result += characters1.charAt(Math.floor(Math.random() * characters1.length));
-    }
-    return result;
-  };
-
-  const encrypt = (input, chars) => {
-    return [...input].map((char, i) => {
-      const x = chars.indexOf(char);
-      return x === -1 ? char : chars[(x + i) % chars.length];
-    });
-  };
-
-  const dcrypt = (array, chars) => {
-    return [...array].map((char, i) => {
-      const x = chars.indexOf(char);
-      return x === -1
-        ? char
-        : chars[(chars.length + x - (i % chars.length)) % chars.length];
-    });
-  };
+ 
 
   const onInputChange = (ev) => {
     setInput(ev.target.value);
@@ -45,85 +20,100 @@ const Home = () => {
   };
 
   const checkPasskey = () => {
-    const db = window.data_base;
-    if (!db) {
-      console.error("Database not initialized yet.");
-      return;
-    }
+  const db = window.data_base;
+  if (!db) {
+    console.error("Database not initialized yet.");
+    return;
+  }
 
-    const tx = db.transaction("passkey", "readonly");
-    const store = tx.objectStore("passkey");
+  const tx = db.transaction("passkey", "readonly");
+  const store = tx.objectStore("passkey");
 
-    const countRequest = store.count();
-    countRequest.onsuccess = () => {
-      if (countRequest.result === 0) {
-        setIsNewPasskey(true);
+  store.count().onsuccess = (event) => {
+    const count = event.target.result;
+
+    if (count === 0) {
+      // No passkey in DB: this is a new user
+      setIsNewPasskey(true);
+      setShowSection("set");
+    } else {
+      // Passkey exists in DB, check localStorage now
+      const localVal = localStorage.getItem("Safe-notes");
+      if (!localVal) {
         setShowSection("set");
-      } else {
-        const localVal = localStorage.getItem("Safe-notes");
-        if (!localVal) {
-          setShowSection("set");
-          return;
-        }
-        const localValue = dcrypt(localVal, characters2);
-        const cursorRequest = store.openCursor();
-        cursorRequest.onsuccess = (e) => {
+        return;
+      }
+
+      try {
+        const parsed = JSON.parse(localVal);
+
+        store.openCursor().onsuccess = async (e) => {
           const cursor = e.target.result;
           if (!cursor) {
             setShowSection("set");
             return;
           }
-          const stored = dcrypt(cursor.value.text, characters1);
-          if (stored.join("") === localValue.join("")) {
-            navigate("/menu");
-          } else {
+
+          try {
+            const key = await deriveKey(input); // input is empty at first
+            const decrypted = await decryptData(key, cursor.value.ciphertext, cursor.value.iv);
+            if (decrypted === input) {
+              navigate("/menu");
+            } else {
+              setShowSection("set");
+            }
+          } catch {
             setShowSection("set");
           }
         };
+      } catch (err) {
+        console.error("Corrupt Safe-notes in localStorage");
+        setShowSection("set");
       }
-    };
-  };
-
-  const handleSetPasskey = () => {
-    const db = window.data_base;
-    if (!db) {
-      alert("Database not ready");
-      return;
     }
+  };
+};
 
-    if (isNewPasskey) {
-      const tx = db.transaction("passkey", "readwrite");
-      const store = tx.objectStore("passkey");
-      store.clear();
 
-      const encrypted1 = encrypt(input, characters1);
-      const encrypted2 = encrypt(input, characters2);
+const handleSetPasskey = async () => {
+  const db = window.data_base;
+  if (!db) return alert("Database not ready");
 
-      store.add({ id: generateString(10), text: encrypted1.join("") });
-      localStorage.setItem("Safe-notes", encrypted2.join(""));
-      navigate("/menu");
-    } else {
-      const tx = db.transaction("passkey", "readonly");
-      const store = tx.objectStore("passkey");
-      const cursorRequest = store.openCursor();
+  const key = await deriveKey(input);
+  const { ciphertext, iv } = await encryptData(key, input);
 
-      cursorRequest.onsuccess = (e) => {
-        const cursor = e.target.result;
-        if (!cursor) {
-          alert("Incorrect Passkey");
-          return;
-        }
-        const stored = dcrypt(cursor.value.text, characters1);
-        if (stored.join("") === input) {
-          const encrypted2 = encrypt(input, characters2);
-          localStorage.setItem("Safe-notes", encrypted2.join(""));
+  if (isNewPasskey) {
+    const tx = db.transaction("passkey", "readwrite");
+    const store = tx.objectStore("passkey");
+    await store.clear();
+    store.add({ id: Date.now(), ciphertext, iv });
+    localStorage.setItem("Safe-notes", JSON.stringify({ ciphertext, iv }));
+    navigate("/menu");
+  } else {
+    const tx = db.transaction("passkey", "readonly");
+    const store = tx.objectStore("passkey");
+    const request = store.openCursor();
+
+    request.onsuccess = async (e) => {
+      const cursor = e.target.result;
+      if (!cursor) return alert("Incorrect Passkey");
+
+      try {
+        const stored = cursor.value;
+        const decrypted = await decryptData(key, stored.ciphertext, stored.iv);
+        if (decrypted === input) {
+          localStorage.setItem("Safe-notes", JSON.stringify({ ciphertext, iv }));
           navigate("/menu");
         } else {
           alert("Incorrect Passkey");
         }
-      };
-    }
-  };
+      } catch {
+        alert("Incorrect Passkey");
+      }
+    };
+  }
+};
+
 
   useEffect(() => {
     initializeDB(

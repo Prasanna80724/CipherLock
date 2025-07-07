@@ -4,9 +4,57 @@ import "./link.css";
 import { initializeDB } from '../db';
 import { FaSearch, FaPlus, FaTimes, FaEdit, FaTrash } from "react-icons/fa";
 
+// AES Utility Functions
+const getKeyMaterial = async (password) => {
+  const enc = new TextEncoder();
+  return crypto.subtle.importKey("raw", enc.encode(password), { name: "PBKDF2" }, false, ["deriveKey"]);
+};
+
+const getAESKey = async (password, salt) => {
+  const keyMaterial = await getKeyMaterial(password);
+  return crypto.subtle.deriveKey(
+    { name: "PBKDF2", salt, iterations: 100000, hash: "SHA-256" },
+    keyMaterial,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"]
+  );
+};
+
+const encryptText = async (text, password) => {
+  const enc = new TextEncoder();
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const key = await getAESKey(password, salt);
+  const encrypted = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, enc.encode(text));
+  const combined = new Uint8Array(iv.length + salt.length + encrypted.byteLength);
+  combined.set(iv, 0);
+  combined.set(salt, iv.length);
+  combined.set(new Uint8Array(encrypted), iv.length + salt.length);
+  return btoa(String.fromCharCode(...combined));
+};
+
+const decryptText = async (base64Data, password) => {
+  try {
+    const data = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+    const iv = data.slice(0, 12);
+    const salt = data.slice(12, 28);
+    const encrypted = data.slice(28);
+    const key = await getAESKey(password, salt);
+    const decrypted = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, encrypted);
+    return new TextDecoder().decode(decrypted);
+  } catch (e) {
+    console.error("AES decryption failed", e);
+    return "";
+  }
+};
+
+const getEncryptionKey = () => {
+  const localVal = localStorage.getItem("Safe-notes");
+  return typeof localVal === "string" && localVal.length > 0 ? localVal : "default-key";
+};
 
 const Link = () => {
-
   const navigate = useNavigate();
   const location = useLocation();
   const [links, setLinks] = useState([]);
@@ -18,57 +66,21 @@ const Link = () => {
   const [dbReady, setDbReady] = useState(false);
   const [dbError, setDbError] = useState(false);
 
-  const encryptText = (text, key) => {
-    let encrypted = '';
-    for (let i = 0; i < text.length; i++) {
-      const charCode = text.charCodeAt(i);
-      const keyChar = key.charCodeAt(i % key.length);
-      encrypted += String.fromCharCode(charCode ^ keyChar);
-    }
-    return btoa(encrypted);
-  };
-
-  const decryptText = (encryptedText, key) => {
-    try {
-      const decoded = atob(encryptedText);
-      let decrypted = '';
-      for (let i = 0; i < decoded.length; i++) {
-        const charCode = decoded.charCodeAt(i);
-        const keyChar = key.charCodeAt(i % key.length);
-        decrypted += String.fromCharCode(charCode ^ keyChar);
-      }
-      return decrypted;
-    } catch (error) {
-      console.error('Decryption failed:', error);
-      return '';
-    }
-  };
-
-  const getEncryptionKey = () => {
-    const localVal = localStorage.getItem("Safe-notes");
-    return typeof localVal === "string" && localVal.length > 0 ? localVal : "default-key";
-  };
-
   useEffect(() => {
-    const checkAuth = () => {
-      const localVal = localStorage.getItem("Safe-notes");
-      if (!localVal || localVal === "0" || localVal.length < 4) {
-        navigate("/", { replace: true });
-      }
-    };
-    checkAuth();
+    const localVal = localStorage.getItem("Safe-notes");
+    if (!localVal || localVal === "0" || localVal.length < 4) {
+      navigate("/", { replace: true });
+    }
   }, [navigate]);
 
-useEffect(() => {
-  initializeDB(() => {
-    setDbReady(true);
-    loadLinks();
-  }, () => setDbError(true));
-}, []);
+  useEffect(() => {
+    initializeDB(() => {
+      setDbReady(true);
+      loadLinks();
+    }, () => setDbError(true));
+  }, []);
 
-  
-  
-  const loadLinks = () => {
+  const loadLinks = async () => {
     const db = window.data_base;
     if (!db) return;
 
@@ -76,44 +88,50 @@ useEffect(() => {
     const store = tx.objectStore("links");
     const request = store.getAll();
 
-    request.onsuccess = () => {
+    request.onsuccess = async () => {
       const encryptedLinks = request.result || [];
       const key = getEncryptionKey();
 
-      const decryptedLinks = encryptedLinks.map(link => ({
-        ...link,
-        title: decryptText(link.title, key),
-        description: decryptText(link.description, key)
-      }));
+      const decryptedLinks = await Promise.all(
+        encryptedLinks.map(async (link) => ({
+          ...link,
+          title: await decryptText(link.title, key),
+          description: await decryptText(link.description, key),
+        }))
+      );
+
       setLinks(decryptedLinks);
     };
 
-    request.onerror = () => {
-      setLinks([]);
-    };
+    request.onerror = () => setLinks([]);
   };
 
-  const handleAddLink = () => {
+  const handleAddLink = async () => {
     if (!title.trim() || !description.trim()) return;
-    const db = window.data_base;
+
     const key = getEncryptionKey();
-    const tx = db.transaction("links", "readwrite");
-    const store = tx.objectStore("links");
+    const encryptedTitle = await encryptText(title.trim(), key);
+    const encryptedDescription = await encryptText(description.trim(), key);
 
     const newLink = {
       id: editingLink ? editingLink.id : Date.now().toString(),
-      title: encryptText(title.trim(), key),
-      description: encryptText(description.trim(), key),
-      createdAt: editingLink ? editingLink.createdAt : new Date().toISOString()
+      title: encryptedTitle,
+      description: encryptedDescription,
+      createdAt: editingLink ? editingLink.createdAt : new Date().toISOString(),
     };
 
+    const db = window.data_base;
+    const tx = db.transaction("links", "readwrite");
+    const store = tx.objectStore("links");
     const request = editingLink ? store.put(newLink) : store.add(newLink);
+
     request.onsuccess = () => {
       loadLinks();
       closeModal();
     };
+
     request.onerror = () => {
-      alert('Failed to save link.');
+      alert("Failed to save link.");
     };
   };
 
@@ -142,7 +160,7 @@ useEffect(() => {
     setEditingLink(null);
   };
 
-  const filteredLinks = links.filter(link =>
+  const filteredLinks = links.filter((link) =>
     link.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
     link.description.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -161,7 +179,8 @@ useEffect(() => {
 
       <div className="notes-content">
         <div className="notes-header">
-          <h2 className="notes-title">Links ({filteredLinks.length})
+          <h2 className="notes-title">
+            Links ({filteredLinks.length})
             {!dbReady && <span style={{ fontSize: '14px', color: '#666' }}> - Loading...</span>}
             {dbError && <span style={{ fontSize: '14px', color: '#f44336' }}> - Database Error</span>}
           </h2>

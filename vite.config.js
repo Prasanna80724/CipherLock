@@ -1,14 +1,25 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
-import tailwindcss from '@tailwindcss/vite'
+import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
-  plugins: [tailwindcss(),
+  server: {
+    host: true, // enable access from LAN/public IP
+    allowedHosts: ['.ngrok-free.app'], // allow ngrok subdomains
+  },
+  plugins: [
+    tailwindcss(),
     react(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["favicon.svg", "robots.txt", "icons/*","/lock-banner.png","/private-data.png"],
+      includeAssets: [
+        "favicon.svg",
+        "robots.txt",
+        "icons/*",
+        "/lock-banner.png",
+        "/private-data.png"
+      ],
       devOptions: {
         enabled: true,
       },
@@ -41,8 +52,8 @@ export default defineConfig({
         ],
       },
       workbox: {
-        navigateFallback: "/index.html", // 🔥 THIS IS THE KEY LINE
-        navigateFallbackDenylist: [/^\/api\//], // Optional: avoid fallback for APIs
+        navigateFallback: "/index.html",
+        navigateFallbackDenylist: [/^\/api\//],
       },
     }),
   ],
